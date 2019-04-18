@@ -119,7 +119,11 @@ namespace SuperSocket.Facility.Protocol
                 totalParsed += parsedLen;
                 rest = length - totalParsed;
 
-                byte[] commandData = new byte[BufferSegments.Count + prevMatched + totalParsed];
+                //add by wuditnt
+                int cmdLen = totalParsed - m_BeginSearchState.Mark.Length - m_EndSearchState.Mark.Length;
+                byte[] commandData = new byte[BufferSegments.Count + prevMatched + cmdLen];
+
+               // byte[] commandData = new byte[BufferSegments.Count + prevMatched + totalParsed];
 
                 if (BufferSegments.Count > 0)
                     BufferSegments.CopyTo(commandData, 0, 0, BufferSegments.Count);
@@ -127,7 +131,11 @@ namespace SuperSocket.Facility.Protocol
                 if(prevMatched > 0)
                     Array.Copy(m_BeginSearchState.Mark, 0, commandData, BufferSegments.Count, prevMatched);
 
-                Array.Copy(readBuffer, offset, commandData, BufferSegments.Count + prevMatched, totalParsed);
+                //Array.Copy(readBuffer, offset, commandData, BufferSegments.Count + prevMatched, totalParsed);
+
+                //modify by wuditnt
+                Array.Copy(readBuffer, offset + m_BeginSearchState.Mark.Length, commandData, BufferSegments.Count + prevMatched, cmdLen);
+                
 
                 var requestInfo = ProcessMatchedRequest(commandData, 0, commandData.Length);
 
@@ -171,5 +179,62 @@ namespace SuperSocket.Facility.Protocol
             m_FoundBegin = false;
             base.Reset();
         }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public class BeginEndMarkReceiveFilter : BeginEndMarkReceiveFilter<StringRequestInfo>
+    {
+        private readonly Encoding m_Encoding;
+        private readonly IRequestInfoParser<StringRequestInfo> m_RequestParser;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="BeginMark"></param>
+        /// <param name="EndMark"></param>
+        /// <param name="encoding"></param>
+        public BeginEndMarkReceiveFilter(byte[] BeginMark, byte[] EndMark, Encoding encoding)
+            : this(BeginMark, EndMark, encoding, BasicRequestInfoParser.DefaultInstance)
+        {
+
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="BeginMark"></param>
+        /// <param name="EndMark"></param>
+        /// <param name="encoding"></param>
+        /// <param name="requestParser"></param>
+        public BeginEndMarkReceiveFilter(byte[] BeginMark, byte[] EndMark, Encoding encoding, IRequestInfoParser<StringRequestInfo> requestParser)
+            : base(BeginMark, EndMark) //传入开始标记和结束标记
+        {
+            m_Encoding = encoding;
+            m_RequestParser = requestParser;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="readBuffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        protected override StringRequestInfo ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
+        {
+            if (length == 0)
+                return m_RequestParser.ParseRequestInfo(string.Empty);
+
+
+            string t = m_Encoding.GetString(readBuffer, offset, length);
+
+            return m_RequestParser.ParseRequestInfo(t);
+
+
+        }
+
+
     }
 }
